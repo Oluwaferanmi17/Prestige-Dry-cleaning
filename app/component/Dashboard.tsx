@@ -888,7 +888,7 @@ export default function Dashboard() {
                 <div className="db-avatar">JD</div>
                 <div>
                   <div className="db-user-name">James Dunmore</div>
-                  <div className="db-user-plan">Premium member</div>
+                  <div className="db-user-plan">Prestige member</div>
                 </div>
               </div>
             </div>

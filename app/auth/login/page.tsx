@@ -1,5 +1,6 @@
 "use client";
 // import Image from "next/image";
+import Link from "next/link";
 import { useState, ChangeEvent, FormEvent } from "react";
 import {
   motion,
@@ -131,7 +132,7 @@ function LeftPanel() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.9, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
       >
-        <span className="auth-headline-small">Est. 1987 · London</span>
+        <span className="auth-headline-small">Est. 2010 · Lagos</span>
         <h2 className="auth-headline">
           Dressed to
           <br />
@@ -658,9 +659,11 @@ export default function LoginPage() {
                   </div>
 
                   <div className="auth-forgot-row">
-                    <button type="button" className="auth-forgot">
-                      Forgot password?
-                    </button>
+                    <Link href="/auth/forgot-password">
+                      <button type="button" className="auth-forgot">
+                        Forgot password?
+                      </button>
+                    </Link>
                   </div>
 
                   <button

@@ -1,0 +1,205 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+//  url       = env("DATABASE_URL")
+//   directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  DRIVER
+}
+
+enum ServiceType {
+  WASH_FOLD
+  DRY_CLEAN
+  PRESS_ONLY
+  HOUSEHOLD
+  ALTERATIONS
+  LEATHER_CARE
+}
+
+enum OrderStatus {
+  PENDING           // Booked, awaiting admin confirmation
+  CONFIRMED         // Confirmed, driver will collect
+  COLLECTED         // Driver has picked up the garments
+  PROCESSING        // At the cleaning facility
+  READY             // Cleaned, ready for delivery
+  OUT_FOR_DELIVERY  // Driver on the way to customer
+  DELIVERED         // Successfully delivered
+  CANCELLED         // Cancelled (only from PENDING or CONFIRMED)
+}
+
+enum TimeSlot {
+  SLOT_08_10  // 08:00 – 10:00
+  SLOT_10_12  // 10:00 – 12:00
+  SLOT_14_16  // 14:00 – 16:00
+  SLOT_16_18  // 16:00 – 18:00
+  SLOT_18_20  // 18:00 – 20:00
+}
+
+// ─────────────────────────────────────────────────────────────
+//  USER
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  firstName    String
+  lastName     String
+  passwordHash String
+  role         Role    @default(CUSTOMER)
+  phone        String?
+  avatarUrl    String?
+
+  // Email verification
+  emailVerified Boolean @default(false)
+  verifyToken   String? @unique
+
+  // Password reset (token expires after 15 min — enforced in API)
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  orders        Order[]
+  addresses     Address[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  ADDRESS
+// ─────────────────────────────────────────────────────────────
+
+model Address {
+  id        String  @id @default(cuid())
+  userId    String
+  label     String? // "Home", "Office", etc.
+  line1     String
+  line2     String?
+  city      String
+  postcode  String
+  country   String  @default("GB")
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pickupOrders   Order[] @relation("PickupAddress")
+  deliveryOrders Order[] @relation("DeliveryAddress")
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  ORDER
+// ─────────────────────────────────────────────────────────────
+
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique // e.g. PC-2026-4582
+  userId      String
+  serviceType ServiceType
+  status      OrderStatus @default(PENDING)
+
+  // Address foreign keys + JSON snapshots
+  // Snapshots preserve the address even if user later edits/deletes it
+  pickupAddressId     String
+  deliveryAddressId   String
+  pickupAddressSnap   Json   // AddressSnapshot at time of booking
+  deliveryAddressSnap Json
+
+  // Schedule
+  pickupDate        DateTime
+  pickupSlot        TimeSlot
+  estimatedDelivery DateTime?
+
+  // Pricing (stored in GBP, 2 decimal places)
+  estimatedPrice Decimal? @db.Decimal(10, 2)
+  finalPrice     Decimal? @db.Decimal(10, 2)
+  currency       String   @default("GBP")
+
+  // Metadata
+  itemCount Int?
+  notes     String?
+
+  // Stripe (optional — add when integrating payments)
+  stripePaymentIntentId String?
+  paidAt                DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user            User                 @relation(fields: [userId], references: [id])
+  pickupAddress   Address              @relation("PickupAddress",   fields: [pickupAddressId],   references: [id])
+  deliveryAddress Address              @relation("DeliveryAddress", fields: [deliveryAddressId], references: [id])
+  statusHistory   OrderStatusHistory[]
+  notifications   Notification[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([pickupDate])
+  @@map("orders")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  ORDER STATUS HISTORY
+//  Append-only audit log — one row per status change
+// ─────────────────────────────────────────────────────────────
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  note      String?     // Optional human-readable note from admin/driver
+  changedBy String?     // User ID of the admin or driver who made the change
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_status_history")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  NOTIFICATION
+//  In-app notifications triggered by order status changes
+// ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id      String  @id @default(cuid())
+  userId  String
+  orderId String?
+  title   String
+  body    String
+  read    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, read])
+  @@map("notifications")
+}
