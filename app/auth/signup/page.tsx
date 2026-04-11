@@ -274,9 +274,44 @@ export default function SignupPage() {
     }
     setErrors({});
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1400));
-    setLoading(false);
-    setSubmitted(true);
+    // await new Promise((r) => setTimeout(r, 1400));
+    // setLoading(false);
+    // setSubmitted(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          password: form.password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrors({ general: data.message || "Registration failed" });
+        return;
+      }
+
+      console.log("User:", data.user);
+
+      setSubmitted(true);
+
+      // setTimeout(() => {
+      //   window.location.href = "/dashboard";
+      // }, 1500);
+    } catch (error) {
+      console.error(error);
+      setErrors({ general: "Something went wrong" });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

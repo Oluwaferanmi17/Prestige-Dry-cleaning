@@ -10,7 +10,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-export async function POSTLogin(req: NextRequest) {
+export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) return err("Invalid credentials.", 422);

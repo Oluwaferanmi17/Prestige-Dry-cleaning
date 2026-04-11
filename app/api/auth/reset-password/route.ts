@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { hashPassword } from "../../../lib/auth";
 import { ok, err } from "../../../lib/middleware";
 import { prisma } from "../../../lib/prisma";
-export async function POSTResetPassword(req: NextRequest) {
+export async function POST(req: NextRequest) {
   const { token, password } = await req.json();
 
   if (!token || !password) return err("Token and password are required.", 400);

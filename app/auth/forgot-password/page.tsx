@@ -18,7 +18,7 @@ import {
   Shirt,
   RefreshCw,
 } from "lucide-react";
-
+import { useSearchParams } from "next/navigation";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Step = "request" | "sent" | "reset" | "done";
@@ -251,8 +251,10 @@ function OrnamentGrid() {
 function StepRequest({ onSubmit }: { onSubmit: (email: string) => void }) {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!email) {
       setError("Email is required");
@@ -263,7 +265,32 @@ function StepRequest({ onSubmit }: { onSubmit: (email: string) => void }) {
       return;
     }
     setError("");
-    onSubmit(email);
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message || "Something went wrong");
+        return;
+      }
+
+      setMessage(data.message);
+      onSubmit(email);
+    } catch (err) {
+      setError("Network error. Try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -308,8 +335,8 @@ function StepRequest({ onSubmit }: { onSubmit: (email: string) => void }) {
           {error && <p className="fp-error">{error}</p>}
         </div>
 
-        <button type="submit" className="fp-btn-primary">
-          Send Reset Link
+        <button type="submit" className="fp-btn-primary" disabled={loading}>
+          {loading ? "Sending..." : "Send Reset Link"}
           <ArrowRight
             width={14}
             height={14}
@@ -318,7 +345,7 @@ function StepRequest({ onSubmit }: { onSubmit: (email: string) => void }) {
           />
         </button>
       </form>
-
+      {message && <p className="fp-success">{message}</p>}
       <a href="/auth/login" className="fp-back-link">
         <ArrowLeft width={12} height={12} strokeWidth={1.5} />
         Back to sign in
@@ -484,6 +511,8 @@ function StepReset({ onSubmit }: { onSubmit: () => void }) {
   const [form, setForm] = useState({ password: "", confirm: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
 
   function validate() {
     const e: Record<string, string> = {};
@@ -503,11 +532,38 @@ function StepReset({ onSubmit }: { onSubmit: () => void }) {
       setErrors(errs);
       return;
     }
+    if (!token) {
+      setErrors({ password: "Invalid or missing reset token" });
+      return;
+    }
     setErrors({});
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    onSubmit();
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token,
+          password: form.password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrors({ password: data.message || "Something went wrong" });
+        return;
+      }
+
+      // ✅ success → go to next step
+      onSubmit();
+    } catch (err) {
+      setErrors({ password: "Network error. Try again." });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

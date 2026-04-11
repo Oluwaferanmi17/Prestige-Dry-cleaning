@@ -6,7 +6,7 @@ import { NextRequest } from "next/server";
 import { generateSecureToken } from "../../../lib/utils";
 import { ok, err } from "../../../lib/middleware";
 import { prisma } from "../../../lib/prisma";
-export async function POSTForgotPassword(req: NextRequest) {
+export async function POST(req: NextRequest) {
   const { email } = await req.json();
   if (!email) return err("Email is required.", 400);
 
@@ -31,5 +31,8 @@ export async function POSTForgotPassword(req: NextRequest) {
     resetUrl,
   });
 
-  return ok({ message: "If that email exists, a reset link has been sent." });
+  return ok({
+    message: "If that email exists, a reset link has been sent.",
+    // token: resetToken,
+  });
 }

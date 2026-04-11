@@ -1,6 +1,6 @@
 // POST / api / auth / register;
 // Body: { firstName, lastName, email, password }
-
+export const runtime = "nodejs";
 import { NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { hashPassword, signToken } from "../../../lib/auth";

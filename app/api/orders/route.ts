@@ -1,6 +1,6 @@
 // import { NextRequest } from "next/server";
 import { prisma } from "../../lib/prisma";
-import type { OrderStatus } from "@prisma/client";
+import { OrderStatus } from "@/app/generated/prisma/client";
 import { withAuth, ok, err } from "../../lib/middleware";
 import {
   generateOrderNumber,
