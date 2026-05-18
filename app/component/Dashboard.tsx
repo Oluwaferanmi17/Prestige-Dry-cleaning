@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import {
   Plus,
@@ -43,74 +44,110 @@ interface RecentOrder {
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
-const ACTIVE_ORDERS: ActiveOrder[] = [
-  {
-    orderId: "4582",
-    product: "2× Suits, 1× Evening Gown",
-    status: "Out for Delivery",
-    eta: "Today, 4–6 pm",
-  },
-  {
-    orderId: "4571",
-    product: "Cashmere overcoat, 3× Shirts",
-    status: "Shipped",
-    eta: "Tomorrow, 10 am–12 pm",
-  },
-  {
-    orderId: "4563",
-    product: "Silk blouse, Linen trousers",
-    status: "Processing",
-    eta: "Thu, 14 Apr",
-  },
-];
+// const ACTIVE_ORDERS: ActiveOrder[] = [
+//   {
+//     orderId: "4582",
+//     product: "2× Suits, 1× Evening Gown",
+//     status: "Out for Delivery",
+//     eta: "Today, 4–6 pm",
+//   },
+//   {
+//     orderId: "4571",
+//     product: "Cashmere overcoat, 3× Shirts",
+//     status: "Shipped",
+//     eta: "Tomorrow, 10 am–12 pm",
+//   },
+//   {
+//     orderId: "4563",
+//     product: "Silk blouse, Linen trousers",
+//     status: "Processing",
+//     eta: "Thu, 14 Apr",
+//   },
+// ];
 
-const RECENT_ORDERS: RecentOrder[] = [
-  {
-    id: "4551",
-    service: "Dry Clean",
-    serviceId: "dry-clean",
-    date: "28 Mar 2026",
-    items: 4,
-    total: "£74.00",
-    status: "Completed",
-  },
-  {
-    id: "4539",
-    service: "Wash & Fold",
-    serviceId: "wash-fold",
-    date: "21 Mar 2026",
-    items: 8,
-    total: "£36.00",
-    status: "Completed",
-  },
-  {
-    id: "4528",
-    service: "Alterations",
-    serviceId: "alterations",
-    date: "14 Mar 2026",
-    items: 2,
-    total: "£55.00",
-    status: "Completed",
-  },
-  {
-    id: "4512",
-    service: "Leather Care",
-    serviceId: "leather",
-    date: "6 Mar 2026",
-    items: 1,
-    total: "£45.00",
-    status: "Completed",
-  },
-  {
-    id: "4498",
-    service: "Press Only",
-    serviceId: "press-only",
-    date: "27 Feb 2026",
-    items: 5,
-    total: "£40.00",
-    status: "Cancelled",
-  },
-];
+function formatStatus(status: string): OrderStatus {
+  switch (status) {
+    case "PENDING":
+    case "PROCESSING":
+      return "Processing";
+    case "SHIPPED":
+      return "Shipped";
+    case "OUT_FOR_DELIVERY":
+      return "Out for Delivery";
+    case "DELIVERED":
+      return "Delivered";
+    default:
+      return "Processing";
+  }
+}
+
+function formatETA(date: string, slot: string) {
+  const d = new Date(date);
+
+  const formattedDate = d.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+
+  const slotMap: Record<string, string> = {
+    SLOT_08_10: "8–10 am",
+    SLOT_10_12: "10 am–12 pm",
+    SLOT_14_16: "2–4 pm",
+    SLOT_16_18: "4–6 pm",
+    SLOT_18_20: "6–8 pm",
+  };
+
+  return `${formattedDate}, ${slotMap[slot] || ""}`;
+}
+
+// const RECENT_ORDERS: RecentOrder[] = [
+//   {
+//     id: "4551",
+//     service: "Dry Clean",
+//     serviceId: "dry-clean",
+//     date: "28 Mar 2026",
+//     items: 4,
+//     total: "£74.00",
+//     status: "Completed",
+//   },
+//   {
+//     id: "4539",
+//     service: "Wash & Fold",
+//     serviceId: "wash-fold",
+//     date: "21 Mar 2026",
+//     items: 8,
+//     total: "£36.00",
+//     status: "Completed",
+//   },
+//   {
+//     id: "4528",
+//     service: "Alterations",
+//     serviceId: "alterations",
+//     date: "14 Mar 2026",
+//     items: 2,
+//     total: "£55.00",
+//     status: "Completed",
+//   },
+//   {
+//     id: "4512",
+//     service: "Leather Care",
+//     serviceId: "leather",
+//     date: "6 Mar 2026",
+//     items: 1,
+//     total: "£45.00",
+//     status: "Completed",
+//   },
+//   {
+//     id: "4498",
+//     service: "Press Only",
+//     serviceId: "press-only",
+//     date: "27 Feb 2026",
+//     items: 5,
+//     total: "£40.00",
+//     status: "Cancelled",
+//   },
+// ];
 
 const SERVICE_ICONS: Record<string, React.ReactNode> = {
   "dry-clean": <Wind width={14} height={14} strokeWidth={1.5} />,
@@ -290,15 +327,86 @@ function StatCard({
     </motion.div>
   );
 }
-
+const SERVICE_LABELS_FRONTEND: Record<string, string> = {
+  WASH_FOLD: "Wash & Fold",
+  DRY_CLEAN: "Dry Clean",
+  PRESS_ONLY: "Press Only",
+  HOUSEHOLD: "Household",
+  ALTERATIONS: "Alterations",
+  LEATHER_CARE: "Leather Care",
+};
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"all" | "completed" | "cancelled">(
     "all",
   );
+  const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    async function fetchOrders() {
+      try {
+        const res = await fetch("/api/orders", {
+          credentials: "include",
+        });
 
-  const filteredOrders = RECENT_ORDERS.filter((o) => {
+        const data = await res.json();
+
+        const orders = data.data.orders;
+
+        // ACTIVE ORDERS
+        const active = orders.filter(
+          (o: any) => o.status !== "DELIVERED" && o.status !== "CANCELLED",
+        );
+
+        const mappedActive = active.map((o: any) => ({
+          orderId: o.orderNumber,
+          product: `${o.itemCount ?? 1} item(s)`,
+          status: formatStatus(o.status),
+          eta: formatETA(o.pickupDate, o.pickupSlot),
+        }));
+
+        setActiveOrders(mappedActive);
+
+        // RECENT ORDERS
+        const recent = orders.filter((o: any) =>
+          ["DELIVERED", "CANCELLED"].includes(o.status),
+        );
+
+        const mappedRecent = recent.map((o: any) => ({
+          id: o.orderNumber,
+
+          service: SERVICE_LABELS_FRONTEND[o.serviceType] ?? "Laundry Service",
+
+          serviceId: o.serviceType.toLowerCase().replace(/_/g, "-"),
+
+          date: new Date(o.createdAt).toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }),
+
+          items: o.itemCount ?? 1,
+
+          total: `${o.currency === "GBP" ? "£" : "$"}${Number(
+            o.finalPrice ?? o.estimatedPrice ?? 0,
+          ).toFixed(2)}`,
+
+          status: o.status === "DELIVERED" ? "Completed" : "Cancelled",
+        }));
+
+        setRecentOrders(mappedRecent);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchOrders();
+  }, []);
+  const filteredOrders = recentOrders.filter((o) => {
     if (activeTab === "all") return true;
     if (activeTab === "completed") return o.status === "Completed";
     if (activeTab === "cancelled") return o.status === "Cancelled";
@@ -917,7 +1025,7 @@ export default function Dashboard() {
                   <em>James.</em>
                 </h1>
                 <p className="db-greeting-sub">
-                  You have {ACTIVE_ORDERS.length} active orders in progress.
+                  You have {activeOrders.length} active orders in progress.
                 </p>
               </div>
 
@@ -938,7 +1046,7 @@ export default function Dashboard() {
             <div className="db-stats-row">
               <StatCard
                 icon={<Package width={16} height={16} strokeWidth={1.5} />}
-                value="3"
+                value={activeOrders.length.toString()}
                 label="Active Orders"
                 sub="1 arriving today"
                 delay={0.1}
@@ -971,7 +1079,7 @@ export default function Dashboard() {
                 <div className="db-section-title">
                   Active Orders
                   <span className="db-section-count">
-                    {ACTIVE_ORDERS.length}
+                    {activeOrders.length}
                   </span>
                 </div>
                 <button className="db-section-link" type="button">
@@ -981,13 +1089,19 @@ export default function Dashboard() {
               </div>
 
               <div className="db-active-orders">
-                {ACTIVE_ORDERS.map((order, i) => (
-                  <ParallaxOrderCard
-                    key={order.orderId}
-                    order={order}
-                    index={i}
-                  />
-                ))}
+                {loading ? (
+                  <div className="db-empty">Loading...</div>
+                ) : activeOrders.length === 0 ? (
+                  <div className="db-empty">No active orders.</div>
+                ) : (
+                  activeOrders.map((order, i) => (
+                    <ParallaxOrderCard
+                      key={order.orderId}
+                      order={order}
+                      index={i}
+                    />
+                  ))
+                )}
               </div>
             </div>
 

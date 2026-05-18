@@ -13,7 +13,7 @@ const addressSchema = z.object({
 });
 
 // GET /api/addresses
-export const GETAddresses = withAuth(async (_req, { user }) => {
+export const GET = withAuth(async (_req, { user }) => {
   const addresses = await prisma.address.findMany({
     where: { userId: user.sub },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -22,7 +22,7 @@ export const GETAddresses = withAuth(async (_req, { user }) => {
 });
 
 // POST /api/addresses
-export const POSTAddresses = withAuth(async (req, { user }) => {
+export const POST = withAuth(async (req, { user }) => {
   const body = await req.json();
   const parsed = addressSchema.safeParse(body);
   if (!parsed.success) return err(parsed.error.issues[0].message, 422);

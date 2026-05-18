@@ -43,16 +43,28 @@ export async function comparePassword(
 
 // ─── Extract token from request ──────────────────────────────────────────────
 
+// export function getTokenFromRequest(req: NextRequest): string | null {
+//   // 1. Try Authorization header: Bearer <token>
+//   const authHeader = req.headers.get("authorization");
+//   if (authHeader?.startsWith("Bearer ")) {
+//     return authHeader.slice(7);
+//   }
+
+//   // 2. Try HttpOnly cookie
+//   const cookie = req.cookies.get("prestige_token");
+//   if (cookie?.value) return cookie.value;
+
+//   return null;
+// }
+
 export function getTokenFromRequest(req: NextRequest): string | null {
-  // 1. Try Authorization header: Bearer <token>
+  const cookie = req.cookies.get("prestige_token");
+  if (cookie?.value) return cookie.value;
+
   const authHeader = req.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
     return authHeader.slice(7);
   }
-
-  // 2. Try HttpOnly cookie
-  const cookie = req.cookies.get("prestige_token");
-  if (cookie?.value) return cookie.value;
 
   return null;
 }

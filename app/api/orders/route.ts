@@ -11,7 +11,7 @@ import {
 import { sendOrderConfirmedEmail } from "../../lib/email";
 import { z } from "zod";
 
-export const GETOrders = withAuth(async (req, { user }) => {
+export const GET = withAuth(async (req, { user }) => {
   const { searchParams } = req.nextUrl;
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const limit = Math.min(50, parseInt(searchParams.get("limit") ?? "10"));
@@ -40,6 +40,7 @@ export const GETOrders = withAuth(async (req, { user }) => {
         estimatedPrice: true,
         currency: true,
         itemCount: true,
+        itemBreakdown: true,
         createdAt: true,
         pickupAddressSnap: true,
       },
@@ -73,10 +74,12 @@ const createOrderSchema = z.object({
     "SLOT_18_20",
   ]),
   notes: z.string().max(300).optional(),
-  itemCount: z.number().int().positive().optional(),
+  itemCount: z.number().int().positive(),
+  itemBreakdown: z.record(z.string(), z.number()),
+  estimatedPrice: z.number().positive(),
 });
 
-export const POSTOrders = withAuth(async (req, { user }) => {
+export const POST = withAuth(async (req, { user }) => {
   const body = await req.json();
   const parsed = createOrderSchema.safeParse(body);
   if (!parsed.success) return err(parsed.error.issues[0].message, 422);
@@ -89,6 +92,8 @@ export const POSTOrders = withAuth(async (req, { user }) => {
     pickupSlot,
     notes,
     itemCount,
+    itemBreakdown,
+    estimatedPrice,
   } = parsed.data;
 
   // Verify addresses belong to this user
@@ -118,7 +123,9 @@ export const POSTOrders = withAuth(async (req, { user }) => {
       pickupDate: new Date(pickupDate),
       pickupSlot,
       notes,
+      estimatedPrice: estimatedPrice.toString(),
       itemCount,
+      itemBreakdown,
       status: "PENDING",
     },
   });

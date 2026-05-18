@@ -19,6 +19,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+// import { forgotPassword, resetPassword } from "@/lib/actions/auth.actions";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Step = "request" | "sent" | "reset" | "done";
@@ -372,16 +373,21 @@ function StepSent({
     if (countdown > 0) return;
     setResent(true);
     setCountdown(30);
+    start(async () => {
+      await forgotPassword(email);
+    });
     onResend();
-    const interval = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
+    const iv = setInterval(
+      () =>
+        setCountdown((c) => {
+          if (c <= 1) {
+            clearInterval(iv);
+            return 0;
+          }
+          return c - 1;
+        }),
+      1000,
+    );
   }
 
   return (

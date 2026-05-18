@@ -226,6 +226,7 @@ export default function LoginPage() {
       });
 
       const data = await res.json();
+      localStorage.setItem("token", data.token);
 
       if (!res.ok) {
         setErrors({ general: data.message || "Login failed" });

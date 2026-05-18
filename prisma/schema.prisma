@@ -134,8 +134,9 @@ model Order {
   currency       String   @default("GBP")
 
   // Metadata
-  itemCount Int?
+  itemBreakdown Json?
   notes     String?
+  itemCount Int @default(0)
 
   // Stripe (optional — add when integrating payments)
   stripePaymentIntentId String?

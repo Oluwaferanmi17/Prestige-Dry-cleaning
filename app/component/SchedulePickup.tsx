@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   MapPin,
   ArrowRight,
@@ -15,7 +16,14 @@ import {
   Layers,
   Scissors,
   Home,
+  Info,
+  Tag,
+  Trash2,
+  Minus,
+  Plus,
+  ShoppingBag,
 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,8 +31,9 @@ interface ServiceOption {
   id: string;
   label: string;
   description: string;
-  price: string;
+  // price: string;
   icon: React.ReactNode;
+  turnaround: string;
 }
 
 interface TimeSlot {
@@ -41,62 +50,193 @@ interface FormState {
   date: Date | null;
   timeSlot: string;
   notes: string;
+  qtys: Record<ItemId, number>;
 }
+
+type ItemId =
+  | "shirt"
+  | "suit"
+  | "trousers"
+  | "dress"
+  | "coat"
+  | "bedding"
+  | "other";
+
+interface ItemDef {
+  id: ItemId;
+  label: string;
+  emoji: string;
+  sublabel: string;
+}
+
+const ITEMS: ItemDef[] = [
+  {
+    id: "shirt",
+    label: "Shirt / T-shirt",
+    emoji: "👔",
+    sublabel: "Dress shirts, casual tees, blouses",
+  },
+  {
+    id: "suit",
+    label: "Suit Jacket",
+    emoji: "🧥",
+    sublabel: "Blazers, jackets, waistcoats",
+  },
+  {
+    id: "trousers",
+    label: "Trousers / Jeans",
+    emoji: "👖",
+    sublabel: "Smart trousers, denim, chinos",
+  },
+  {
+    id: "dress",
+    label: "Dress / Skirt",
+    emoji: "👗",
+    sublabel: "Day dresses, evening wear, skirts",
+  },
+  {
+    id: "coat",
+    label: "Coat / Jacket",
+    emoji: "🪭",
+    sublabel: "Overcoats, puffer jackets, parkas",
+  },
+  {
+    id: "bedding",
+    label: "Bedding / Linen",
+    emoji: "🛏️",
+    sublabel: "Duvets, sheets, pillowcases, curtains",
+  },
+  {
+    id: "other",
+    label: "Other / Custom",
+    emoji: "📦",
+    sublabel: "Unlisted items — price confirmed by team",
+  },
+];
+
+const EMPTY_QTYS: Record<ItemId, number> = {
+  shirt: 0,
+  suit: 0,
+  trousers: 0,
+  dress: 0,
+  coat: 0,
+  bedding: 0,
+  other: 0,
+};
+
+// ─── Pricing matrix (pence / GBP) ────────────────────────────────────────────
+// 0 = not applicable for that service
+
+const PRICES: Record<string, Record<ItemId, number>> = {
+  WASH_FOLD: {
+    shirt: 350,
+    suit: 800,
+    trousers: 500,
+    dress: 600,
+    coat: 900,
+    bedding: 1200,
+    other: 500,
+  },
+  DRY_CLEAN: {
+    shirt: 800,
+    suit: 1800,
+    trousers: 1200,
+    dress: 1500,
+    coat: 2200,
+    bedding: 2500,
+    other: 1000,
+  },
+  PRESS_ONLY: {
+    shirt: 300,
+    suit: 700,
+    trousers: 400,
+    dress: 500,
+    coat: 700,
+    bedding: 900,
+    other: 350,
+  },
+  HOUSEHOLD: {
+    shirt: 0,
+    suit: 0,
+    trousers: 0,
+    dress: 0,
+    coat: 0,
+    bedding: 1200,
+    other: 800,
+  },
+  ALTERATIONS: {
+    shirt: 1200,
+    suit: 2500,
+    trousers: 1800,
+    dress: 2200,
+    coat: 2800,
+    bedding: 1500,
+    other: 1500,
+  },
+  LEATHER_CARE: {
+    shirt: 0,
+    suit: 3500,
+    trousers: 2800,
+    dress: 3000,
+    coat: 4500,
+    bedding: 0,
+    other: 2000,
+  },
+};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SERVICES: ServiceOption[] = [
   {
-    id: "wash-fold",
+    id: "WASH_FOLD",
     label: "Wash & Fold",
     description: "Everyday laundry, fresh & folded",
-    price: "From £12",
+    turnaround: "24h",
     icon: <Shirt width={20} height={20} strokeWidth={1.5} />,
   },
   {
-    id: "dry-clean",
+    id: "DRY_CLEAN",
     label: "Dry Clean",
     description: "Suits, dresses & delicates",
-    price: "From £18",
+    turnaround: "48h",
     icon: <Wind width={20} height={20} strokeWidth={1.5} />,
   },
   {
-    id: "press-only",
+    id: "PRESS_ONLY",
     label: "Press Only",
     description: "Crisp finish, no wash",
-    price: "From £8",
+    turnaround: "24h",
     icon: <Sparkles width={20} height={20} strokeWidth={1.5} />,
   },
   {
-    id: "household",
+    id: "HOUSEHOLD",
     label: "Household",
     description: "Bedding, curtains & linens",
-    price: "From £22",
+    turnaround: "48h",
     icon: <Layers width={20} height={20} strokeWidth={1.5} />,
   },
   {
-    id: "alterations",
+    id: "ALTERATIONS",
     label: "Alterations",
     description: "Tailoring & repairs",
-    price: "From £15",
+    turnaround: "5–7d",
     icon: <Scissors width={20} height={20} strokeWidth={1.5} />,
   },
   {
-    id: "leather",
+    id: "LEATHER",
     label: "Leather & Suede",
     description: "Specialist leather care",
-    price: "From £35",
+    turnaround: "5–7d",
     icon: <Home width={20} height={20} strokeWidth={1.5} />,
   },
 ];
 
 const TIME_SLOTS: TimeSlot[] = [
-  { id: "08-10", label: "8:00 – 10:00 am", available: true },
-  { id: "10-12", label: "10:00 – 12:00 pm", available: true },
-  { id: "12-14", label: "12:00 – 2:00 pm", available: false },
-  { id: "14-16", label: "2:00 – 4:00 pm", available: true },
-  { id: "16-18", label: "4:00 – 6:00 pm", available: true },
-  { id: "18-20", label: "6:00 – 8:00 pm", available: false },
+  { id: "SLOT_08_10", label: "8:00 – 10:00 am", available: true },
+  { id: "SLOT_10_12", label: "10:00 – 12:00 pm", available: true },
+  { id: "SLOT_14_16", label: "2:00 – 4:00 pm", available: true },
+  { id: "SLOT_16_18", label: "4:00 – 6:00 pm", available: true },
+  { id: "SLOT_18_20", label: "6:00 – 8:00 pm", available: true },
 ];
 
 const DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -142,6 +282,202 @@ function isPast(d: Date): boolean {
   return d < today;
 }
 
+const fmt = (p: number) => `£${(p / 100).toFixed(2)}`;
+
+// ─── ItemRow ──────────────────────────────────────────────────────────────────
+
+function ItemRow({
+  item,
+  qty,
+  price,
+  unavailable,
+  onInc,
+  onDec,
+}: {
+  item: ItemDef;
+  qty: number;
+  price: number;
+  unavailable: boolean;
+  onInc: () => void;
+  onDec: () => void;
+}) {
+  const isOther = item.id === "other";
+  const hasPrice = price > 0 || isOther;
+  const disabled = unavailable;
+
+  return (
+    <motion.div
+      layout
+      className={[
+        "item-row",
+        disabled ? "item-row--disabled" : "",
+        qty > 0 ? "item-row--active" : "",
+      ].join(" ")}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+    >
+      {/* Emoji */}
+      <span className="item-emoji" aria-hidden>
+        {item.emoji}
+      </span>
+
+      {/* Info */}
+      <div className="item-info">
+        <div className="item-label">{item.label}</div>
+        <div className="item-sub">
+          {disabled ? (
+            "Not available for this service"
+          ) : isOther ? (
+            "Price confirmed on collection"
+          ) : hasPrice ? (
+            <>
+              <strong className="item-price">{fmt(price)}</strong> per item
+            </>
+          ) : (
+            "Not available for this service"
+          )}
+        </div>
+      </div>
+
+      {/* Controls */}
+      {disabled ? (
+        <span className="item-na">N/A</span>
+      ) : (
+        <div className="item-controls">
+          <button
+            type="button"
+            className="item-btn item-btn--dec"
+            onClick={onDec}
+            disabled={qty === 0}
+            aria-label={`Remove ${item.label}`}
+          >
+            {qty === 1 ? (
+              <Trash2 width={11} height={11} strokeWidth={2} />
+            ) : (
+              <Minus width={11} height={11} strokeWidth={2} />
+            )}
+          </button>
+
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={qty}
+              className="item-qty"
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ duration: 0.13 }}
+            >
+              {qty}
+            </motion.span>
+          </AnimatePresence>
+
+          <button
+            type="button"
+            className="item-btn item-btn--inc"
+            onClick={onInc}
+            aria-label={`Add ${item.label}`}
+          >
+            <Plus width={11} height={11} strokeWidth={2} />
+          </button>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ─── PriceBreakdown ───────────────────────────────────────────────────────────
+
+function PriceBreakdown({
+  qtys,
+  service,
+  total,
+}: {
+  // here under service
+  qtys: Record<ItemId, number>;
+  service: string;
+  total: number;
+}) {
+  const lines = ITEMS.filter((it) => qtys[it.id] > 0).map((it) => ({
+    ...it,
+    qty: qtys[it.id],
+    unit: PRICES[service][it.id],
+    line: qtys[it.id] * PRICES[service][it.id],
+  }));
+
+  if (lines.length === 0) return null;
+
+  return (
+    <motion.div
+      className="pb-card"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 8 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <div className="pb-head">
+        <Tag width={11} height={11} strokeWidth={1.5} />
+        Price Breakdown
+      </div>
+
+      <div className="pb-lines">
+        {lines.map((li, i) => (
+          <motion.div
+            key={li.id}
+            className="pb-line"
+            initial={{ opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.22, delay: i * 0.05 }}
+          >
+            <span className="pb-line-left">
+              <span className="pb-line-emoji">{li.emoji}</span>
+              {li.label}
+              <span className="pb-line-qty">×{li.qty}</span>
+            </span>
+            <span className="pb-line-right">
+              {li.unit === 0 ? (
+                <span className="pb-tbc">TBC</span>
+              ) : (
+                fmt(li.line)
+              )}
+            </span>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="pb-sep" />
+
+      <div className="pb-total-row">
+        <span className="pb-total-label">Estimated Total</span>
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={total}
+            className="pb-total-val"
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 10, opacity: 0 }}
+            transition={{
+              duration: 0.18,
+              type: "spring",
+              stiffness: 500,
+              damping: 32,
+            }}
+          >
+            {fmt(total)}
+          </motion.span>
+        </AnimatePresence>
+      </div>
+
+      {lines.some((l) => l.unit === 0) && (
+        <p className="pb-note">
+          <Info width={9} height={9} strokeWidth={1.5} />
+          TBC items are priced by our team on collection.
+        </p>
+      )}
+    </motion.div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SchedulePickup() {
@@ -155,11 +491,13 @@ export default function SchedulePickup() {
     date: null,
     timeSlot: "",
     notes: "",
+    qtys: { ...EMPTY_QTYS },
   });
 
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const cells = getDaysInMonth(calYear, calMonth);
 
@@ -175,73 +513,342 @@ export default function SchedulePickup() {
       setCalYear((y) => y + 1);
     } else setCalMonth((m) => m + 1);
   }
+  const inc = (id: ItemId) =>
+    setForm((prev) => ({
+      ...prev,
+      qtys: {
+        ...prev.qtys,
+        [id]: (prev.qtys[id] || 0) + 1,
+      },
+    }));
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitted(true);
+  const dec = (id: ItemId) =>
+    setForm((prev) => ({
+      ...prev,
+      qtys: {
+        ...prev.qtys,
+        [id]: Math.max(0, (prev.qtys[id] || 0) - 1),
+      },
+    }));
+
+  // Live pricing
+  const { total, totalItems } = useMemo(() => {
+    if (!form.serviceType) return { total: 0, totalItems: 0 };
+
+    let t = 0;
+    let n = 0;
+
+    ITEMS.forEach((it) => {
+      const q = form.qtys[it.id] || 0;
+
+      if (q > 0) {
+        t += q * PRICES[form.serviceType][it.id];
+        n += q;
+      }
+    });
+
+    return { total: t, totalItems: n };
+  }, [form.serviceType, form.qtys]);
+  function validate() {
+    const e: Record<string, string> = {};
+    if (!form.pickupAddress.trim()) e.pickup = "Pickup address is required";
+    if (!form.sameAsPickup && !form.deliveryAddress.trim())
+      e.delivery = "Delivery address is required";
+    if (!form.serviceType) e.service = "Select a service";
+    if (totalItems === 0) e.items = "Add at least one item";
+    if (!form.date) e.date = "Select a pickup date";
+    if (!form.timeSlot) e.slot = "Select a time slot";
+    return e;
   }
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    const validationErrors = validate();
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    try {
+      // ✅ Get token
+      const token = localStorage.getItem("token");
+
+      console.log("TOKEN:", token);
+
+      if (!token) {
+        throw new Error("Not authenticated");
+      }
+
+      // ✅ Create pickup address
+      const pickupRes = await fetch("http://localhost:3000/api/addresses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          line1: form.pickupAddress,
+          city: "Abuja",
+          postcode: "000000",
+          country: "NG",
+        }),
+      });
+
+      const pickupJson = await pickupRes.json();
+
+      console.log("Pickup Response:", pickupJson);
+
+      if (!pickupRes.ok) {
+        throw new Error(
+          pickupJson?.message ||
+            pickupJson?.error ||
+            "Failed to create pickup address",
+        );
+      }
+
+      const pickupAddressId = pickupJson.data.id;
+
+      // ✅ Delivery address
+      let deliveryAddressId = pickupAddressId;
+
+      if (!form.sameAsPickup) {
+        const deliveryRes = await fetch("http://localhost:3000/api/addresses", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            line1: form.deliveryAddress,
+            city: "Abuja",
+            postcode: "000000",
+            country: "NG",
+          }),
+        });
+
+        const deliveryJson = await deliveryRes.json();
+
+        console.log("Delivery Response:", deliveryJson);
+
+        if (!deliveryRes.ok) {
+          throw new Error(
+            deliveryJson?.message ||
+              deliveryJson?.error ||
+              "Failed to create delivery address",
+          );
+        }
+
+        deliveryAddressId = deliveryJson.data.id;
+      }
+
+      // ✅ Calculate item count
+      const itemCount = Object.values(form.qtys).reduce((a, b) => a + b, 0);
+
+      // ✅ Create order
+      const orderRes = await fetch("http://localhost:3000/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          serviceType: form.serviceType,
+          pickupAddressId,
+          deliveryAddressId,
+          pickupDate: form.date!.toISOString(),
+          pickupSlot: form.timeSlot,
+          notes: form.notes,
+          itemCount,
+          itemBreakdown: form.qtys,
+          estimatedPrice: total,
+        }),
+      });
+
+      const orderJson = await orderRes.json();
+
+      console.log("Order Response:", orderJson);
+
+      if (!orderRes.ok) {
+        throw new Error(
+          orderJson?.message || orderJson?.error || "Failed to create order",
+        );
+      }
+
+      // ✅ Success
+      setSubmitted(true);
+    } catch (err: any) {
+      console.error("SUBMIT ERROR:", err);
+
+      alert(err.message || "Something went wrong");
+    }
+  }
   const selectedService = SERVICES.find((s) => s.id === form.serviceType);
+  function reset() {
+    setForm({
+      pickupAddress: "",
+      deliveryAddress: "",
+      sameAsPickup: false,
+      serviceType: "",
+      date: null,
+      timeSlot: "",
+      notes: "",
+      qtys: { ...EMPTY_QTYS },
+    });
+
+    setErrors({});
+    setSubmitted(false);
+  }
 
   // ── Submitted confirmation screen ────────────────────────────────────────
+  // if (submitted) {
+  //   return (
+  //     <>
+  //       <Fonts />
+  //       <div className="sp-root">
+  //         <div className="sp-confirm">
+  //           <div className="sp-confirm-icon">
+  //             <Check width={28} height={28} strokeWidth={2} color="#C9A84C" />
+  //           </div>
+  //           <h2 className="sp-confirm-title">Booking Confirmed</h2>
+  //           <p className="sp-confirm-sub">
+  //             We&apos;ll send a confirmation to your email. Our driver will
+  //             arrive during your chosen slot.
+  //           </p>
+  //           <div className="sp-confirm-details">
+  //             {form.date && (
+  //               <div className="sp-confirm-row">
+  //                 <span className="sp-confirm-label">Date</span>
+  //                 <span className="sp-confirm-val">
+  //                   {form.date.toLocaleDateString("en-GB", {
+  //                     weekday: "long",
+  //                     day: "numeric",
+  //                     month: "long",
+  //                   })}
+  //                 </span>
+  //               </div>
+  //             )}
+  //             {form.timeSlot && (
+  //               <div className="sp-confirm-row">
+  //                 <span className="sp-confirm-label">Time</span>
+  //                 <span className="sp-confirm-val">
+  //                   {TIME_SLOTS.find((t) => t.id === form.timeSlot)?.label}
+  //                 </span>
+  //               </div>
+  //             )}
+  //             {selectedService && (
+  //               <div className="sp-confirm-row">
+  //                 <span className="sp-confirm-label">Service</span>
+  //                 <span className="sp-confirm-val">
+  //                   {selectedService.label}
+  //                 </span>
+  //               </div>
+  //             )}
+  //             {form.pickupAddress && (
+  //               <div className="sp-confirm-row">
+  //                 <span className="sp-confirm-label">Pickup</span>
+  //                 <span className="sp-confirm-val">{form.pickupAddress}</span>
+  //               </div>
+  //             )}
+  //           </div>
+  //           <button
+  //             type="button"
+  //             className="sp-btn-primary"
+  //             onClick={() => setSubmitted(false)}
+  //           >
+  //             Schedule Another
+  //           </button>
+  //         </div>
+  //       </div>
+  //     </>
+  //   );
+  // }
+
   if (submitted) {
+    const svcLabel =
+      SERVICES.find((s) => s.id === form.serviceType)?.label ?? "";
+
+    const slotLabel =
+      TIME_SLOTS.find((t) => t.id === form.timeSlot)?.label ?? "";
+
     return (
       <>
+        {/* <style>{CSS}</style> */}
         <Fonts />
-        <div className="sp-root">
-          <div className="sp-confirm">
-            <div className="sp-confirm-icon">
-              <Check width={28} height={28} strokeWidth={2} color="#C9A84C" />
-            </div>
-            <h2 className="sp-confirm-title">Booking Confirmed</h2>
-            <p className="sp-confirm-sub">
+
+        <div className="sp-root sp-root--center">
+          <motion.div
+            className="success-card"
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <motion.div
+              className="success-ring"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{
+                duration: 0.6,
+                type: "spring",
+                stiffness: 260,
+                damping: 18,
+              }}
+            >
+              <Check width={30} height={30} strokeWidth={1.5} color="#C9A84C" />
+            </motion.div>
+
+            <h2 className="success-title">
+              Booking <em>Confirmed</em>
+            </h2>
+
+            <p className="success-sub">
               We&apos;ll send a confirmation to your email. Our driver will
-              arrive during your chosen slot.
+              arrive during your chosen window.
             </p>
-            <div className="sp-confirm-details">
-              {form.date && (
-                <div className="sp-confirm-row">
-                  <span className="sp-confirm-label">Date</span>
-                  <span className="sp-confirm-val">
-                    {form.date.toLocaleDateString("en-GB", {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                    })}
-                  </span>
+
+            <div className="success-summary">
+              {[
+                ["Service", svcLabel],
+
+                [
+                  "Date",
+                  form.date?.toLocaleDateString("en-GB", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                  }) ?? "",
+                ],
+
+                ["Window", slotLabel],
+
+                ["Items", `${totalItems} item${totalItems !== 1 ? "s" : ""}`],
+              ].map(([k, v]) => (
+                <div key={k} className="success-row">
+                  <span>{k}</span>
+                  <span>{v}</span>
                 </div>
-              )}
-              {form.timeSlot && (
-                <div className="sp-confirm-row">
-                  <span className="sp-confirm-label">Time</span>
-                  <span className="sp-confirm-val">
-                    {TIME_SLOTS.find((t) => t.id === form.timeSlot)?.label}
-                  </span>
-                </div>
-              )}
-              {selectedService && (
-                <div className="sp-confirm-row">
-                  <span className="sp-confirm-label">Service</span>
-                  <span className="sp-confirm-val">
-                    {selectedService.label}
-                  </span>
-                </div>
-              )}
-              {form.pickupAddress && (
-                <div className="sp-confirm-row">
-                  <span className="sp-confirm-label">Pickup</span>
-                  <span className="sp-confirm-val">{form.pickupAddress}</span>
-                </div>
-              )}
+              ))}
+
+              <div className="success-row success-row--total">
+                <span>Estimated Total</span>
+                <span>{fmt(total)}</span>
+              </div>
             </div>
+
             <button
               type="button"
-              className="sp-btn-primary"
-              onClick={() => setSubmitted(false)}
+              className="sp-btn sp-btn--gold sp-btn--full"
+              onClick={reset}
             >
               Schedule Another
+              <ArrowRight width={13} height={13} strokeWidth={1.5} />
             </button>
-          </div>
+
+            <a href="/dashboard" className="success-back">
+              ← Back to dashboard
+            </a>
+          </motion.div>
         </div>
       </>
     );
@@ -254,7 +861,12 @@ export default function SchedulePickup() {
       <div className="sp-root">
         {/* ── Page header ── */}
         <header className="sp-header">
-          <div className="sp-header-inner">
+          <motion.div
+            className="sp-header-inner"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          >
             <div className="sp-eyebrow">
               <span className="sp-eyebrow-line" />
               <span>Schedule a Pickup</span>
@@ -268,7 +880,7 @@ export default function SchedulePickup() {
               Free same-day collection when booked before noon. Returned fresh,
               pressed, and ready to wear.
             </p>
-          </div>
+          </motion.div>
         </header>
 
         {/* ── Form layout ── */}
@@ -335,27 +947,35 @@ export default function SchedulePickup() {
                   </span>
                 </label>
 
-                {!form.sameAsPickup && (
-                  <div className="sp-field sp-field--animated">
-                    <label className="sp-label" htmlFor="delivery">
-                      Delivery Address
-                    </label>
-                    <input
-                      id="delivery"
-                      type="text"
-                      className="sp-input"
-                      placeholder="Enter delivery address"
-                      value={form.deliveryAddress}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          deliveryAddress: e.target.value,
-                        }))
-                      }
-                      autoComplete="street-address"
-                    />
-                  </div>
-                )}
+                <AnimatePresence>
+                  {!form.sameAsPickup && (
+                    <motion.div
+                      className="sp-field sp-field--animated"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      <label className="sp-label" htmlFor="delivery">
+                        Delivery Address
+                      </label>
+                      <input
+                        id="delivery"
+                        type="text"
+                        className="sp-input"
+                        placeholder="Enter delivery address"
+                        value={form.deliveryAddress}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            deliveryAddress: e.target.value,
+                          }))
+                        }
+                        autoComplete="street-address"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </section>
 
               {/* Section: Service Type */}
@@ -377,7 +997,10 @@ export default function SchedulePickup() {
                       <div className="sp-service-icon">{svc.icon}</div>
                       <div className="sp-service-label">{svc.label}</div>
                       <div className="sp-service-desc">{svc.description}</div>
-                      <div className="sp-service-price">{svc.price}</div>
+                      <div className="sp-service-turnaround">
+                        {svc.turnaround}
+                      </div>
+                      2
                       {form.serviceType === svc.id && (
                         <div className="sp-service-check">
                           <Check
@@ -417,6 +1040,84 @@ export default function SchedulePickup() {
                   <div className="sp-char-count">{form.notes.length} / 300</div>
                 </div>
               </section>
+            </div>
+
+            <div className="sp-col">
+              <div className="sp-block sp-block--sticky-header">
+                <div className="sp-block-label">
+                  <ShoppingBag width={12} height={12} strokeWidth={1.5} />
+                  Add Items
+                  {totalItems > 0 && (
+                    <motion.span
+                      className="items-badge"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 500,
+                        damping: 28,
+                      }}
+                    >
+                      {totalItems} item{totalItems !== 1 ? "s" : ""}
+                    </motion.span>
+                  )}
+                </div>
+
+                {/* Hint when no service selected */}
+                <AnimatePresence>
+                  {!form.serviceType && (
+                    <motion.div
+                      className="items-hint"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <Sparkles
+                        width={22}
+                        height={22}
+                        strokeWidth={1}
+                        color="rgba(201,168,76,0.35)"
+                      />
+                      <p>Select a service to see per-item pricing.</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {errors.items && <p className="sp-err">{errors.items}</p>}
+
+                {/* Items list */}
+                <div className="items-list">
+                  {ITEMS.map((item) => {
+                    const price = form.serviceType
+                      ? PRICES[form.serviceType][item.id]
+                      : 0;
+                    const unavailable =
+                      !!form.serviceType && price === 0 && item.id !== "other";
+                    return (
+                      <ItemRow
+                        key={item.id}
+                        item={item}
+                        qty={form.qtys[item.id]}
+                        price={price}
+                        unavailable={unavailable}
+                        onInc={() => inc(item.id)}
+                        onDec={() => dec(item.id)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Live price breakdown — appears when items added */}
+              <AnimatePresence>
+                {form.serviceType && totalItems > 0 && (
+                  <PriceBreakdown
+                    qtys={form.qtys}
+                    service={form.serviceType as string}
+                    total={total}
+                  />
+                )}
+              </AnimatePresence>
             </div>
 
             {/* ── RIGHT: Calendar + Time ── */}
@@ -533,43 +1234,90 @@ export default function SchedulePickup() {
               </section>
 
               {/* ── Order summary ── */}
-              {(form.serviceType || form.date || form.timeSlot) && (
-                <div className="sp-summary">
-                  <div className="sp-summary-title">Booking Summary</div>
-                  {selectedService && (
-                    <div className="sp-summary-row">
-                      <span>{selectedService.label}</span>
-                      <span className="sp-summary-price">
-                        {selectedService.price}
-                      </span>
-                    </div>
-                  )}
-                  {form.date && (
-                    <div className="sp-summary-row">
-                      <span>
-                        {form.date.toLocaleDateString("en-GB", {
+              <div className="sp-summary">
+                <div className="sp-summary-title">Order sp-Summary</div>
+
+                <div className="sp-summary-rows">
+                  <div className="sp-summary-row">
+                    <span>Service</span>
+
+                    <span>
+                      {form.serviceType ? (
+                        SERVICES.find((s) => s.id === form.serviceType)?.label
+                      ) : (
+                        <em>Not selected</em>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="sp-summary-row">
+                    <span>Items</span>
+
+                    <span>
+                      {totalItems > 0 ? (
+                        `${totalItems} item${totalItems !== 1 ? "s" : ""}`
+                      ) : (
+                        <em>None yet</em>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="sp-summary-row">
+                    <span>Date</span>
+
+                    <span>
+                      {form.date ? (
+                        form.date.toLocaleDateString("en-GB", {
                           weekday: "short",
                           day: "numeric",
                           month: "short",
-                        })}
-                      </span>
-                      {form.timeSlot && (
-                        <span className="sp-summary-time">
-                          {
-                            TIME_SLOTS.find((t) => t.id === form.timeSlot)
-                              ?.label
-                          }
-                        </span>
+                        })
+                      ) : (
+                        <em>Not selected</em>
                       )}
-                    </div>
-                  )}
-                  <div className="sp-summary-divider" />
-                  <div className="sp-summary-row sp-summary-row--note">
-                    <span>Final price confirmed on collection</span>
+                    </span>
+                  </div>
+
+                  <div className="sp-summary-row">
+                    <span>Window</span>
+
+                    <span>
+                      {form.timeSlot ? (
+                        TIME_SLOTS.find((t) => t.id === form.timeSlot)?.label
+                      ) : (
+                        <em>Not selected</em>
+                      )}
+                    </span>
                   </div>
                 </div>
-              )}
 
+                <div className="sp-summary-sep" />
+
+                {/* Animated total */}
+                <div className="sp-summary-total">
+                  <span className="sp-summary-total-label">
+                    Estimated Total
+                  </span>
+
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={total}
+                      className="sp-summary-total-val"
+                      initial={{ y: -12, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: 12, opacity: 0 }}
+                      transition={{
+                        duration: 0.2,
+                        type: "spring",
+                        stiffness: 480,
+                        damping: 30,
+                      }}
+                    >
+                      {total > 0 ? fmt(total) : "—"}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
+              </div>
               {/* ── Submit ── */}
               <button type="submit" className="sp-btn-primary sp-btn-full">
                 Confirm Booking
@@ -795,12 +1543,13 @@ export default function SchedulePickup() {
         .sp-service-card--active .sp-service-icon { color: var(--gold); }
         .sp-service-label { font-size: 13px; font-weight: 500; color: var(--cream); }
         .sp-service-desc { font-size: 11px; color: var(--mist); line-height: 1.4; font-weight: 300; }
-        .sp-service-price {
-          font-size: 11px;
-          color: var(--gold);
-          margin-top: 4px;
-          letter-spacing: 0.04em;
-          font-weight: 400;
+        .sp-service-turnaround {
+          // font-size: 11px;
+          // color: var(--gold);
+          // margin-top: 4px;
+          // letter-spacing: 0.04em;
+          // font-weight: 400;
+          font-size:10px;color:var(--gold);margin-top:4px;letter-spacing:.04em;
         }
         .sp-service-check {
           position: absolute;
@@ -812,6 +1561,50 @@ export default function SchedulePickup() {
           align-items: center;
           justify-content: center;
         }
+
+   .sp-block{display:flex;flex-direction:column;gap:14px;}
+.sp-block-label{display:inline-flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);font-weight:400;padding-bottom:12px;border-bottom:1px solid var(--border);}
+
+.items-badge{margin-left:auto;background:rgba(201,168,76,.15);color:var(--gold);font-size:10px;padding:2px 8px;letter-spacing:.05em;}
+.items-hint{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 16px;background:rgba(255,255,255,.015);border:1px dashed rgba(201,168,76,.14);text-align:center;}
+.items-hint p{font-size:13px;color:var(--mist);font-weight:300;line-height:1.6;}
+.items-list{display:flex;flex-direction:column;gap:5px;}
+
+.item-row{display:flex;align-items:center;gap:11px;padding:10px 13px;background:var(--card);border:1px solid var(--border);transition:border-color .2s,background .18s;}
+.item-row:hover:not(.item-row--disabled){border-color:var(--bh);}
+.item-row--active{border-color:rgba(201,168,76,.28);background:rgba(201,168,76,.035);}
+.item-row--disabled{opacity:.32;pointer-events:none;}
+.item-emoji{font-size:18px;flex-shrink:0;width:22px;text-align:center;line-height:1;}
+.item-info{flex:1;min-width:0;}
+.item-label{font-size:12px;font-weight:400;color:var(--cream);}
+.item-sub{font-size:11px;color:var(--mist);font-weight:300;margin-top:1px;}
+.item-price{color:var(--gold-l);font-weight:500;}
+.item-na{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#3E3830;border:1px solid #2A2620;padding:2px 6px;flex-shrink:0;}
+.item-controls{display:flex;align-items:center;flex-shrink:0;border:1px solid var(--border);}
+.item-btn{width:26px;height:26px;background:none;border:none;color:var(--mist);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s;}
+.item-btn:hover:not(:disabled){background:rgba(201,168,76,.1);color:var(--gold-l);}
+.item-btn--dec:hover:not(:disabled){background:rgba(180,80,80,.1);color:var(--red);}
+.item-btn:disabled{opacity:.25;cursor:not-allowed;}
+.item-qty{width:26px;text-align:center;font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:400;color:var(--cream);display:flex;align-items:center;justify-content:center;}
+
+
+/* price breakdown */
+.pb-card{background:var(--card);border:1px solid rgba(201,168,76,.22);padding:18px 18px;}
+.pb-head{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:400;margin-bottom:13px;}
+.pb-lines{display:flex;flex-direction:column;gap:7px;}
+.pb-line{display:flex;justify-content:space-between;align-items:center;font-size:12px;}
+.pb-line-left{display:flex;align-items:center;gap:7px;color:var(--mist);font-weight:300;}
+.pb-line-emoji{font-size:13px;width:16px;flex-shrink:0;}
+.pb-line-qty{font-size:10px;color:#4A4238;margin-left:3px;}
+.pb-line-right{font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:400;color:var(--cream);}
+.pb-tbc{font-family:'DM Sans',sans-serif;font-size:11px;color:var(--mist);letter-spacing:.08em;}
+.pb-sep{height:1px;background:var(--border);margin:13px 0;}
+.pb-total-row{display:flex;justify-content:space-between;align-items:center;}
+.pb-total-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mist);}
+.pb-total-val{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:var(--gold-l);line-height:1;}
+.pb-note{display:flex;align-items:flex-start;gap:6px;font-size:10px;color:#4A4238;font-style:italic;margin-top:10px;line-height:1.5;}
+
+
 
         /* ── Calendar ── */
         .sp-calendar {
@@ -958,9 +1751,13 @@ export default function SchedulePickup() {
           font-weight: 300;
         }
         .sp-summary-row--note { font-size: 11px; color: #4A4238; font-style: italic; margin-bottom: 0; }
-        .sp-summary-price { color: var(--gold); font-weight: 400; }
+        .sp-summary-turnaround { color: var(--gold); font-weight: 400; }
         .sp-summary-time { color: var(--cream); }
         .sp-summary-divider { height: 1px; background: var(--border); margin: 12px 0; }
+.sp-summary-sep{height:1px;background:var(--border);margin:16px 0;}
+.sp-summary-total{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+.sp-summary-total-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mist);}
+.sp-summary-total-val{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:600;color:var(--gold-l);line-height:1;}
 
         /* ── Submit button ── */
         .sp-btn-primary {
